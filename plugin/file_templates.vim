@@ -9,7 +9,7 @@
 let s:TagMatch = '<+\(.\{-1,}\)\(;R\)\?+\+>'
 let s:VarTagMatch = '<+\(\$[A-Z]\+\$\)\(;R\)\?+\+>'
 let s:AskTagMatch = '#[A-Z_]\{-1,}#'
-let s:searchSpecial = '$^*[]\:'
+let s:searchSpecial = '$^*[]/\:'
 
 let s:AskTagDefault = {}
 
@@ -19,13 +19,22 @@ command! -complete=customlist,ListAvailableTemplates -nargs=?
 command! -complete=customlist,ListAvailableTemplates -nargs=? 
 			\ AddTemplate call AddTemplate("<args>")
 
+let s:plugin_paths = split(globpath(&rtp, 'plugin/file_templates.vim'), '\n')
+if len(s:plugin_paths) == 1
+	let s:FileTemplatePath = fnamemodify(s:plugin_paths[0], ':p:h:h') . "/templates/"
+elseif len(s:plugin_paths) == 0
+	echoerr "Cannot find file_templates.vim"
+else
+	echoerr "Multiple plugin installs found: something has gone wrong!"
+endif
+
 function! ListAvailableTemplates(A,L,P)
 	let s:bufferFileName = expand('%:t')
 	let result = []
 	let resultDict = {}
 	if len(s:bufferFileName) > 0
 		let extension = expand('%:e')
-		let files = split(globpath(g:VIMFILESDIR."templates/", '*.'.extension), '\n')
+		let files = split(globpath(s:FileTemplatePath, '*.'.extension), '\n')
 
 		for f in files
 			let root = fnamemodify(f, ':t:r')
@@ -55,7 +64,7 @@ function! LoadFileTemplate(name)
 	endif
 
 	if len(s:bufferFileName) > 0
-		execute "silent! 0r ".g:VIMFILESDIR."templates/".tolower(template_name).".".expand('%:e')
+		execute "silent! 0r ".s:FileTemplatePath.tolower(template_name).".".expand('%:e')
 		syn match vimTemplateMarker "<+.++>" containedin=ALL
 		call ExpandTemplateNames()
 		call AskForOtherNames()
@@ -67,7 +76,7 @@ function! AddTemplate(name)
 	let template_name = a:name
 
 	if len(s:bufferFileName) > 0
-		execute "silent! r ".g:VIMFILESDIR."templates/".tolower(template_name).".".expand('%:e')
+		execute "silent! r ".s:FileTemplatePath."templates/".tolower(template_name).".".expand('%:e')
 		syn match vimTemplateMarker "<+.++>" containedin=ALL
 		call ExpandTemplateNames()
 		call AskForOtherNames()
@@ -160,6 +169,9 @@ function! ExpandTemplateNames()
 				\     '$LBASENAME$':  tolower(expand('%:t:r')),
 				\     '$YEAR$':       strftime("%Y"),
 				\     '$DATE$':       strftime('%d/%m/%Y'),
+				\     '$DATETIME$':   strftime('%d/%m/%Y %H.%M.%S'),
+				\     '$MCPREFIX$':   expand('%:t:r'),
+				\     '$UCPREFIX$':   toupper(expand('%:t:r')),
 				\ }
 
 	let [lnum, cnum] = searchpos(s:VarTagMatch)
@@ -178,11 +190,11 @@ function! ExpandTemplateNames()
 					else
 						let fillVariable = expandedVariable
 						let fillVariable .= repeat(' ', width-len(expandedVariable))
-						execute lnum.'s:^.\{'.(cnum-1).'}\zs'.escape(matches[0],s:searchSpecial).':'.expand(fillVariable, s:searchSpecial).':'
+						execute lnum.'s:^.\{'.(cnum-1).'}\zs'.escape(matches[0],s:searchSpecial).':'.escape(fillVariable, s:searchSpecial).':'
 					endif
 				else
 					" We don't have to maintain the width
-					execute lnum.'s:^.\{'.(cnum-1).'}\zs'.escape(matches[0],s:searchSpecial).':'.expand(expandedVariable, s:searchSpecial).':'
+					execute lnum.'s:^.\{'.(cnum-1).'}\zs'.escape(matches[0],s:searchSpecial).':'.escape(expandedVariable, s:searchSpecial).':'
 				endif
 			else
 				" Leave this one and let the user fill it in manually
